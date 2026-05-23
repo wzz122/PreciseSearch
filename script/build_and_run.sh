@@ -10,12 +10,19 @@ SIGNING_IDENTITY="${CODESIGN_IDENTITY:-}"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIST_DIR="$ROOT_DIR/dist"
 APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
-APP_CONTENTS="$APP_BUNDLE/Contents"
+STAGE_DIR="$(/usr/bin/mktemp -d "${TMPDIR:-/tmp}/PreciseSearch.XXXXXX")"
+STAGE_APP_BUNDLE="$STAGE_DIR/$APP_NAME.app"
+APP_CONTENTS="$STAGE_APP_BUNDLE/Contents"
 APP_MACOS="$APP_CONTENTS/MacOS"
 APP_RESOURCES="$APP_CONTENTS/Resources"
 APP_BINARY="$APP_MACOS/$APP_NAME"
 INFO_PLIST="$APP_CONTENTS/Info.plist"
 ICON_SOURCE="$ROOT_DIR/Resources/AppIcon.icns"
+
+cleanup() {
+  rm -rf "$STAGE_DIR"
+}
+trap cleanup EXIT
 
 cd "$ROOT_DIR"
 
@@ -24,7 +31,6 @@ pkill -x "$APP_NAME" >/dev/null 2>&1 || true
 swift build
 BUILD_BINARY="$(swift build --show-bin-path)/$APP_NAME"
 
-rm -rf "$APP_BUNDLE"
 mkdir -p "$APP_MACOS" "$APP_RESOURCES"
 cp "$BUILD_BINARY" "$APP_BINARY"
 chmod +x "$APP_BINARY"
@@ -49,9 +55,9 @@ cat >"$INFO_PLIST" <<PLIST
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
-  <string>0.1.0</string>
+  <string>0.1.1</string>
   <key>CFBundleVersion</key>
-  <string>1</string>
+  <string>2</string>
   <key>LSMinimumSystemVersion</key>
   <string>$MIN_SYSTEM_VERSION</string>
   <key>NSPrincipalClass</key>
@@ -60,7 +66,6 @@ cat >"$INFO_PLIST" <<PLIST
 </plist>
 PLIST
 
-/usr/bin/xattr -cr "$APP_BUNDLE" >/dev/null 2>&1 || true
 if [[ -z "$SIGNING_IDENTITY" ]]; then
   SIGNING_IDENTITY="$(/usr/bin/security find-identity -v -p codesigning 2>/dev/null | /usr/bin/awk -F '\"' '/Apple Development/ { print $2; exit }')"
 fi
@@ -69,8 +74,13 @@ if [[ -z "$SIGNING_IDENTITY" ]]; then
   SIGNING_IDENTITY="-"
 fi
 
-/usr/bin/codesign --force --deep --sign "$SIGNING_IDENTITY" "$APP_BUNDLE" >/dev/null
-/usr/bin/codesign --verify --deep --strict "$APP_BUNDLE" >/dev/null
+/usr/bin/xattr -cr "$STAGE_APP_BUNDLE" >/dev/null 2>&1 || true
+/usr/bin/codesign --force --deep --sign "$SIGNING_IDENTITY" "$STAGE_APP_BUNDLE" >/dev/null
+/usr/bin/codesign --verify --deep --strict "$STAGE_APP_BUNDLE" >/dev/null
+
+rm -rf "$APP_BUNDLE"
+mkdir -p "$DIST_DIR"
+/usr/bin/ditto --norsrc "$STAGE_APP_BUNDLE" "$APP_BUNDLE"
 
 open_app() {
   /usr/bin/open -n "$APP_BUNDLE"

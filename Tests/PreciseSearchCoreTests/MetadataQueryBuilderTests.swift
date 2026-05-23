@@ -30,7 +30,7 @@ final class MetadataQueryBuilderTests: XCTestCase {
 
         XCTAssertEqual(
             MetadataQueryBuilder.predicate(for: request),
-            #"(kMDItemFSName ==[c] "杜媒" || kMDItemFSName ==[c] "杜媒.*")"#
+            #"kMDItemFSName ==[c] "杜媒" || kMDItemFSName ==[c] "杜媒.*""#
         )
     }
 

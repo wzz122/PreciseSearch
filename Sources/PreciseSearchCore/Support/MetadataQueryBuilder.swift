@@ -7,7 +7,7 @@ public enum MetadataQueryBuilder {
         switch request.mode {
         case .exact:
             if request.ignoreExtension {
-                return "(\(filenameEquals(query)) || \(filenameEqualsPattern("\(query).*")))"
+                return "\(filenameEquals(query)) || \(filenameEqualsPattern("\(query).*"))"
             }
 
             return filenameEquals(query)
