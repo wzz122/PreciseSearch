@@ -37,19 +37,22 @@ public enum SearchService {
             throw SearchServiceError.commandFailed(process.terminationStatus, message)
         }
 
-        let paths = outputData.split(separator: 0).compactMap {
+        let metadataPaths = outputData.split(separator: 0).compactMap {
             String(data: Data($0), encoding: .utf8)
         }
 
         var seen = Set<String>()
         var results: [SearchResult] = []
-        results.reserveCapacity(min(paths.count, request.maxResults))
+        results.reserveCapacity(min(metadataPaths.count, request.maxResults))
 
-        for path in paths {
+        for path in metadataPaths {
             guard seen.insert(path).inserted else {
                 continue
             }
             guard request.includeHidden || !isHidden(path: path) else {
+                continue
+            }
+            guard FileSystemSearch.matches(filename: URL(fileURLWithPath: path).lastPathComponent, request: request) else {
                 continue
             }
             guard let result = makeResult(path: path) else {
@@ -60,6 +63,20 @@ public enum SearchService {
 
             if results.count >= request.maxResults {
                 break
+            }
+        }
+
+        if results.count < request.maxResults {
+            for result in FileSystemSearch.search(request, excluding: seen) {
+                guard seen.insert(result.path).inserted else {
+                    continue
+                }
+
+                results.append(result)
+
+                if results.count >= request.maxResults {
+                    break
+                }
             }
         }
 
